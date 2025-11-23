@@ -1,5 +1,7 @@
 ActiveAdmin::Inputs::Filters::SelectInput.class_eval do
   def select_html # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
+    return super unless reflection
+
     current_value = object.public_send(input_name)
 
     options = []
