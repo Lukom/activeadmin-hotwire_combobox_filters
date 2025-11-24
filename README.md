@@ -83,17 +83,15 @@ Here's an example setup:
     <details>
     <summary>Recommended way:</summary>
     
-    a) Move `tailwind-active_admin.config.js` → `config/tailwind-active_admin.config.js`
- 
-    b) Change at the top of `config/tailwind-active_admin.config.js`:
-    ```js
-    const activeAdminPath = execSync('bundle show activeadmin', { encoding: 'utf-8' }).trim();
-    const activeAdminPlugin = require(`${activeAdminPath}/plugin.js`);
+    a) Move `tailwind-active_admin.config.js` → `config/tailwind-active_admin.config.js` and change at the top:
+    ```diff
+    -import activeAdminPlugin from '@activeadmin/activeadmin/plugin';
+    +const activeAdminPlugin = require(`${activeAdminPath}/plugin.js`);
     ```
     
-    c) Rename `app/assets/stylesheets/active_admin.css` → `app/assets/stylesheets/active_admin.tailwind.css` and append proposed styles to this file.
+    b) Rename `app/assets/stylesheets/active_admin.css` → `app/assets/stylesheets/active_admin.tailwind.css` and append proposed styles to this file.
 
-    d) Create `bin/tasks/admin_styles.thor` with content:
+    c) Create `bin/tasks/admin_styles.thor` with content:
     ```ruby
     class AdminStyles < Thor
       desc "build", "Build Active Admin Tailwind stylesheets"
@@ -118,11 +116,23 @@ Here's an example setup:
     end
     ```
    
-    e) Run `bundle binstub tailwindcss-rails`. This will create `bin/tailwindcss` file.
+    d) Run `bundle binstub tailwindcss-rails`. This will create `bin/tailwindcss` file.
 
-    f) Append to `Procfile.dev`:
+    e) Append to `Procfile.dev`:
     ```
     admin_css: bin/thor admin_styles:watch
+    ```
+
+    f) Change `Rakefile`:
+    ```ruby
+    require_relative "config/application"
+    require "thor"
+    load "lib/tasks/admin_styles.thor"
+    
+    Rails.application.load_tasks
+    
+    task(:build_admin_styles) { AdminStyles.start(["build"]) }
+    Rake::Task["assets:precompile"].enhance(['build_admin_styles'])
     ```
 
     g) Remove `cssbundling-rails` from `Gemfile`
