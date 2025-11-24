@@ -16,87 +16,117 @@ The gem requires ActiveAdmin to be wired up with Hotwire.
 
 Here's an example setup:
 
-1. Add hotwire_combobox styles to your app, I recommend adding them to `app/views/active_admin/_html_head.html.erb`:
+1. Add to the bottom of `config/initializers/active_admin.rb`:
 
-   ```erb
-   <%= render "activeadmin_hotwire_combobox_filters/combobox_styles" %>
-   ```
+    ```ruby
+    ActiveAdmin.importmap.draw do
+      pin "@hotwired/turbo-rails", to: "turbo.min.js", preload: true
+      pin "@hotwired/stimulus", to: "stimulus.min.js", preload: true
+      pin "controllers/active_admin_application", preload: true
+      pin "custom_active_admin", preload: true
+    end
+    ActiveAdmin.importmap.draw(HotwireCombobox::Engine.root.join("config/hw_importmap.rb"))
+    ```
 
-2. Use importmaps:
+2. Create file `app/javascript/custom_active_admin.js`:
 
-   In `app/views/active_admin/_html_head.html.erb`:
+    ```js
+    import "active_admin"
+    import "@hotwired/turbo-rails"
+    import { application } from "controllers/active_admin_application"
+    import HwComboboxController from "controllers/hw_combobox_controller"
+    application.register("hw-combobox", HwComboboxController)
+    ```
 
-   ```diff
-   -<%= javascript_importmap_tags "active_admin", importmap: ActiveAdmin.importmap %>
-   +<%= javascript_importmap_tags %>
-   ```
+3. Create file `controllers/active_admin_application.js`:
 
-   <details>
-   <summary>Here's an example `config/importmap.rb`:</summary>
+    ```js
+    import { Application } from '@hotwired/stimulus'
+    
+    const application = Application.start()
+    
+    application.debug = false
+    window.Stimulus = application
+    
+    export { application }
+    ```
+4. Change in `app/views/active_admin/_html_head.html.erb`:
+    ```diff
+    -<%= javascript_importmap_tags "active_admin", importmap: ActiveAdmin.importmap %>
+    +<%= javascript_importmap_tags "custom_active_admin", importmap: ActiveAdmin.importmap %>
+    ```
 
-   ```ruby
-   # Pin npm packages by running ./bin/importmap
+5. Add some additional styling if you want:
 
-   pin "application"
-   pin "@hotwired/turbo-rails", to: "turbo.min.js"
-   pin "@hotwired/stimulus", to: "@hotwired--stimulus.js" # @3.2.2
-   pin "@hotwired/stimulus-loading", to: "stimulus-loading.js"
-   pin_all_from "app/javascript/controllers", under: "controllers"
+    ```css
+    /* styles for activeadmin-hotwire_combobox_filters BEGIN */
+    /* makes it look like other AA input fields */
+    :root:root {
+      --hw-component-bg-color: rgb(249 250 251);
+    }
+ 
+    /* makes it look like other AA input fields with validation errors */
+    .formtastic .error :where(.hw-combobox__main__wrapper) {
+      @apply border-red-500;
+    }
+ 
+    /* makes it wider than default hotwire_combobox styles */
+    :root:root {
+      --hw-combobox-width: 100%;
+    }
+    .hw-combobox.hw-combobox {
+      @apply flex;
+    }
+    /* styles for activeadmin-hotwire_combobox_filters END */
+    ```
+   
+    <details>
+    <summary>Recommended way:</summary>
+    
+    a) Move `tailwind-active_admin.config.js` → `config/tailwind-active_admin.config.js`
+ 
+    b) Change at the top of `config/tailwind-active_admin.config.js`:
+    ```js
+    const activeAdminPath = execSync('bundle show activeadmin', { encoding: 'utf-8' }).trim();
+    const activeAdminPlugin = require(`${activeAdminPath}/plugin.js`);
+    ```
+    
+    c) Rename `app/assets/stylesheets/active_admin.css` → `app/assets/stylesheets/active_admin.tailwind.css` and append proposed styles to this file.
 
-   pin "flowbite", to: "https://cdn.jsdelivr.net/npm/flowbite@2.5.2/dist/flowbite.turbo.min.js" # @2.5.2
-   pin "@stimulus-components/auto-submit", to: "@stimulus-components--auto-submit.js" # @6.0.0
-   pin "@activeadmin/activeadmin", to: "@activeadmin--activeadmin.js" # @4.0.0
-   pin "@rails/ujs", to: "@rails--ujs.js" # @7.1.400
+    d) Create `bin/tasks/admin_styles.thor` with content:
+    ```ruby
+    class AdminStyles < Thor
+      desc "build", "Build Active Admin Tailwind stylesheets"
+      option :watch, type: :boolean, default: false, desc: "Watch and rebuild on changes"
+      def build
+        system(
+          "bin/tailwindcss",
+          "-i", "app/assets/stylesheets/active_admin.tailwind.css",
+          "-o", "app/assets/builds/active_admin.css",
+          "-c", "config/tailwind-active_admin.config.js",
+          *("--watch" if options[:watch]),
+          exception: true
+        )
+      rescue Interrupt
+        # that's ok
+      end
+   
+      desc "watch", "Watch and rebuild Active Admin Tailwind stylesheets"
+      def watch
+        invoke :build, nil, watch: true
+      end
+    end
+    ```
+   
+    e) Run `bundle binstub tailwindcss-rails`. This will create `bin/tailwindcss` file.
 
-   pin "stimulus-datepicker" # @1.0.9
-   pin "flowbite-datepicker" # @1.3.1
-   ```
+    f) Append to `Procfile.dev`:
+    ```
+    admin_css: bin/thor admin_styles:watch
+    ```
 
-   Most of these files are in `vendor/javascript`, added by running `bin/importmap pin @stimulus-components/auto-submit` or similar.
-
-   `turbo.min.js`and`stimulus-loading.js`are part of`turbo-rails` gem (I believe).
-
-   Flowbite is loaded as recommened by Flowbite docs for Rails/importmaps: https://flowbite.com/docs/getting-started/rails/
-
-   </details>
-
-3. Add this line to your `config/application.rb`:
-
-   ```ruby
-   config.importmap.paths << ActiveAdmin::Engine.root.join("config", "importmap.rb")
-   ```
-
-4. Update your `app/javascript/application.js`:
-
-   ```js
-   // Configure your import map in config/importmap.rb. Read more: https://github.com/rails/importmap-rails
-
-   import "active_admin";
-   import "@hotwired/turbo-rails";
-   import "controllers";
-   ```
-
-5. Some additional styling you might want to add to your app:
-
-   ```css
-   /* makes it look like other AA input fields */
-   :root:root {
-     --hw-component-bg-color: rgb(249 250 251);
-   }
-
-   /* makes it look like other AA input fields with validation errors */
-   .formtastic .error :where(.hw-combobox__main__wrapper) {
-     @apply border-red-500;
-   }
-
-   /* makes it wider than default hotwire_combobox styles */
-   :root:root {
-     --hw-combobox-width: 100%;
-   }
-   .hw-combobox.hw-combobox {
-     @apply flex;
-   }
-   ```
+    g) Remove `cssbundling-rails` from `Gemfile`
+    </details>
 
 # Thanks and credits
 
