@@ -34,4 +34,12 @@ module ActiveAdminHotwireComboboxFilters::InputsCommon
     method
   end
 
+  def build_chips_url(options)
+    if (url = options[:chip_url])
+      url.respond_to?(:call) ? url.call : url
+    elsif reflection
+      template.public_send(:"combobox_chips_admin_#{reflection.klass.name.tableize}_path")
+    end
+  end
+
 end

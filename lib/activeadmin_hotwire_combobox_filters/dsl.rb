@@ -1,6 +1,7 @@
 module ActiveAdminHotwireComboboxFilters
   module DSL
     DISPLAY_NAME_METHODS = %w[display_name full_name name username login title email to_s].freeze
+    DummyChipItem = Struct.new(:id, :to_combobox_display)
 
     def run_registration_block(&block) # rubocop:disable Metrics/AbcSize, Metrics/MethodLength
       resource_class = config.resource_class
@@ -18,6 +19,7 @@ module ActiveAdminHotwireComboboxFilters
           collection_action :combobox_search, method: :get do
             search_fields = params.require(:search_fields)
             scope = active_admin_authorization.scope_collection(resource_class)
+            scope = scope.where.not(id: params[:except_ids]) if params[:except_ids].present?
             scope = scope.ordered if resource_class.respond_to?(:ordered)
             scope = SearchByFields.new(scope:, term: params[:q], fields: search_fields).perform if params[:q].present?
             scope = scope.page(params[:page]).per(Kaminari.config.default_per_page)
@@ -25,6 +27,24 @@ module ActiveAdminHotwireComboboxFilters
             next_page = scope.next_page
 
             render turbo_stream: helpers.async_combobox_options(combobox_results, next_page:)
+          end
+        end
+
+        unless controller.action_methods.include?("combobox_chips")
+          collection_action :combobox_chips, method: %i[get post] do
+            id_values, non_id_values = params[:combobox_values].split(",").partition { |v| v.match?(/\A\d+\z/) }
+            items = []
+
+            if id_values.any?
+              scope = active_admin_authorization.scope_collection(resource_class)
+              items.concat(scope.where(id: id_values).to_a)
+            end
+
+            non_id_values.each do |value|
+              items << ActiveAdminHotwireComboboxFilters::DSL::DummyChipItem.new(value, value)
+            end
+
+            render turbo_stream: helpers.combobox_selection_chips_for(items)
           end
         end
 
