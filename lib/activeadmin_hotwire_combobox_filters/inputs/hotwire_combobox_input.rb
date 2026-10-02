@@ -15,6 +15,10 @@ module ActiveAdmin
 
         combobox_args = @options.fetch(:combobox_args, {})
 
+        if combobox_args[:multiselect] && !combobox_args.key?(:multiselect_chip_src)
+          combobox_args[:multiselect_chip_src] = build_chips_url(options)
+        end
+
         res << builder.combobox(input_name, path_or_collection, **combobox_args)
       end
     end
